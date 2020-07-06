@@ -34,6 +34,7 @@ under the License.
 	<name>flink-connector-kinesis</name>
 	<properties>
 		<aws.sdk.version>1.11.754</aws.sdk.version>
+		<aws.sdkv2.version>2.13.44</aws.sdkv2.version>
 		<aws.kinesis-kcl.version>1.11.2</aws.kinesis-kcl.version>
 		<aws.kinesis-kpl.version>0.14.0</aws.kinesis-kpl.version>
 		<aws.dynamodbstreams-kinesis-adapter.version>1.5.0</aws.dynamodbstreams-kinesis-adapter.version>
@@ -106,6 +107,12 @@ under the License.
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-java-sdk-kinesis</artifactId>
 			<version>${aws.sdk.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>kinesis</artifactId>
+			<version>${aws.sdkv2.version}</version>
 		</dependency>
 
 		<dependency>
