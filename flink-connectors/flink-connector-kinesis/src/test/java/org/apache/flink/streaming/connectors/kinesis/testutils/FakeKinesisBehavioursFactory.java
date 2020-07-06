@@ -335,15 +335,15 @@ public class FakeKinesisBehavioursFactory {
 	private static class SingleShardEmittingAggregatedRecordsKinesis extends SingleShardEmittingKinesis {
 
 		public SingleShardEmittingAggregatedRecordsKinesis(final int numOfAggregatedRecords,
-				final int numOfChildRecords,
-				final int numOfGetRecordsCalls) {
+			final int numOfChildRecords,
+			final int numOfGetRecordsCalls) {
 			super(initShardItrToRecordBatch(numOfAggregatedRecords, numOfChildRecords, numOfGetRecordsCalls));
 		}
 
 		@Nonnull
 		private static Map<String, List<Record>> initShardItrToRecordBatch(final int numOfAggregatedRecords,
-				final int numOfChildRecords,
-				final int numOfGetRecordsCalls) {
+			final int numOfChildRecords,
+			final int numOfGetRecordsCalls) {
 
 			Map<String, List<Record>> shardToRecordBatch = new HashMap<>();
 

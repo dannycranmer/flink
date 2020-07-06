@@ -27,8 +27,10 @@ import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.connectors.kinesis.KinesisShardAssigner;
 import org.apache.flink.streaming.connectors.kinesis.config.ConsumerConfigConstants;
+import org.apache.flink.streaming.connectors.kinesis.internals.publisher.RecordPublisher;
+import org.apache.flink.streaming.connectors.kinesis.internals.publisher.polling.PollingRecordPublisherFactory;
 import org.apache.flink.streaming.connectors.kinesis.metrics.KinesisConsumerMetricConstants;
-import org.apache.flink.streaming.connectors.kinesis.metrics.ShardMetricsReporter;
+import org.apache.flink.streaming.connectors.kinesis.metrics.ShardConsumerMetricsReporter;
 import org.apache.flink.streaming.connectors.kinesis.model.KinesisStreamShardState;
 import org.apache.flink.streaming.connectors.kinesis.model.SentinelSequenceNumber;
 import org.apache.flink.streaming.connectors.kinesis.model.SequenceNumber;
@@ -51,6 +53,8 @@ import com.amazonaws.services.kinesis.model.SequenceNumberRange;
 import com.amazonaws.services.kinesis.model.Shard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nonnull;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -389,22 +393,28 @@ public class KinesisDataFetcher<T> {
 	 * @param subscribedShardStateIndex the state index of the shard this consumer is subscribed to
 	 * @param subscribedShard the shard this consumer is subscribed to
 	 * @param lastSequenceNum the sequence number in the shard to start consuming
-	 * @param shardMetricsReporter the reporter to report metrics to
+	 * @param metricGroup the metric group to report metrics to
 	 * @return shard consumer
 	 */
 	protected ShardConsumer<T> createShardConsumer(
 		Integer subscribedShardStateIndex,
 		StreamShardHandle subscribedShard,
 		SequenceNumber lastSequenceNum,
-		ShardMetricsReporter shardMetricsReporter,
+		MetricGroup metricGroup,
 		KinesisDeserializationSchema<T> shardDeserializer) {
+
+		final KinesisProxyInterface kinesis = kinesisProxyFactory.create(configProps);
+
+		final RecordPublisher recordPublisher = new PollingRecordPublisherFactory()
+			.create(configProps, metricGroup, subscribedShard, kinesis);
+
 		return new ShardConsumer<>(
 			this,
+			recordPublisher,
 			subscribedShardStateIndex,
 			subscribedShard,
 			lastSequenceNum,
-			this.kinesisProxyFactory.create(configProps),
-			shardMetricsReporter,
+			new ShardConsumerMetricsReporter(metricGroup),
 			shardDeserializer);
 	}
 
@@ -475,7 +485,7 @@ public class KinesisDataFetcher<T> {
 						seededStateIndex,
 						streamShardHandle,
 						subscribedShardsState.get(seededStateIndex).getLastProcessedSequenceNum(),
-						registerShardMetrics(consumerMetricGroup, subscribedShardsState.get(seededStateIndex)),
+						registerShardMetricGroup(consumerMetricGroup, subscribedShardsState.get(seededStateIndex)),
 						shardDeserializationSchema));
 			}
 		}
@@ -576,7 +586,7 @@ public class KinesisDataFetcher<T> {
 						newStateIndex,
 						newShardState.getStreamShardHandle(),
 						newShardState.getLastProcessedSequenceNum(),
-						registerShardMetrics(consumerMetricGroup, newShardState),
+						registerShardMetricGroup(consumerMetricGroup, newShardState),
 						shardDeserializationSchema));
 			}
 
@@ -1057,29 +1067,17 @@ public class KinesisDataFetcher<T> {
 	/**
 	 * Registers a metric group associated with the shard id of the provided {@link KinesisStreamShardState shardState}.
 	 *
-	 * @return a {@link ShardMetricsReporter} that can be used to update metric values
+	 * @return a {@link MetricGroup} that can be used to update metric values
 	 */
-	private static ShardMetricsReporter registerShardMetrics(MetricGroup metricGroup, KinesisStreamShardState shardState) {
-		ShardMetricsReporter shardMetrics = new ShardMetricsReporter();
-
-		MetricGroup streamShardMetricGroup = metricGroup
+	@Nonnull
+	private MetricGroup registerShardMetricGroup(MetricGroup metricGroup, KinesisStreamShardState shardState) {
+		return metricGroup
 			.addGroup(
 				KinesisConsumerMetricConstants.STREAM_METRICS_GROUP,
 				shardState.getStreamShardHandle().getStreamName())
 			.addGroup(
 				KinesisConsumerMetricConstants.SHARD_METRICS_GROUP,
 				shardState.getStreamShardHandle().getShard().getShardId());
-
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.MILLIS_BEHIND_LATEST_GAUGE, shardMetrics::getMillisBehindLatest);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.MAX_RECORDS_PER_FETCH, shardMetrics::getMaxNumberOfRecordsPerFetch);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.NUM_AGGREGATED_RECORDS_PER_FETCH, shardMetrics::getNumberOfAggregatedRecords);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.NUM_DEAGGREGATED_RECORDS_PER_FETCH, shardMetrics::getNumberOfDeaggregatedRecords);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.AVG_RECORD_SIZE_BYTES, shardMetrics::getAverageRecordSizeBytes);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.BYTES_PER_READ, shardMetrics::getBytesPerRead);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.RUNTIME_LOOP_NANOS, shardMetrics::getRunLoopTimeNanos);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.LOOP_FREQUENCY_HZ, shardMetrics::getLoopFrequencyHz);
-		streamShardMetricGroup.gauge(KinesisConsumerMetricConstants.SLEEP_TIME_MILLIS, shardMetrics::getSleepTimeMillis);
-		return shardMetrics;
 	}
 
 	// ------------------------------------------------------------------------

@@ -51,17 +51,6 @@ public class TestUtils {
 		return config;
 	}
 
-	/**
-	 * Creates a batch of {@code numOfAggregatedRecords} aggregated records.
-	 * Each aggregated record contains {@code numOfChildRecords} child records.
-	 * Each record is assigned the sequence number: {@code sequenceNumber + index * numOfChildRecords}.
-	 * The next sequence number is output to the {@code sequenceNumber}.
-	 *
-	 * @param numOfAggregatedRecords the number of records in the batch
-	 * @param numOfChildRecords the number of child records for each aggregated record
-	 * @param sequenceNumber the starting sequence number, outputs the next sequence number
-	 * @return the batch af aggregated records
-	 */
 	@Nonnull
 	public static List<Record> createAggregatedRecordBatch(final int numOfAggregatedRecords,
 			final int numOfChildRecords,
@@ -94,5 +83,4 @@ public class TestUtils {
 
 		return recordBatch;
 	}
-
 }
