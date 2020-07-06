@@ -28,6 +28,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.connectors.kinesis.KinesisShardAssigner;
 import org.apache.flink.streaming.connectors.kinesis.config.ConsumerConfigConstants;
 import org.apache.flink.streaming.connectors.kinesis.internals.publisher.RecordPublisher;
+import org.apache.flink.streaming.connectors.kinesis.internals.publisher.fanout.FanOutRecordPublisherFactory;
 import org.apache.flink.streaming.connectors.kinesis.internals.publisher.polling.PollingRecordPublisherFactory;
 import org.apache.flink.streaming.connectors.kinesis.metrics.KinesisConsumerMetricConstants;
 import org.apache.flink.streaming.connectors.kinesis.metrics.ShardConsumerMetricsReporter;
@@ -39,6 +40,8 @@ import org.apache.flink.streaming.connectors.kinesis.model.StreamShardMetadata;
 import org.apache.flink.streaming.connectors.kinesis.proxy.GetShardListResult;
 import org.apache.flink.streaming.connectors.kinesis.proxy.KinesisProxy;
 import org.apache.flink.streaming.connectors.kinesis.proxy.KinesisProxyInterface;
+import org.apache.flink.streaming.connectors.kinesis.proxy.KinesisProxyV2;
+import org.apache.flink.streaming.connectors.kinesis.proxy.KinesisProxyV2Interface;
 import org.apache.flink.streaming.connectors.kinesis.serialization.KinesisDeserializationSchema;
 import org.apache.flink.streaming.connectors.kinesis.util.RecordEmitter;
 import org.apache.flink.streaming.connectors.kinesis.util.WatermarkTracker;
@@ -403,10 +406,18 @@ public class KinesisDataFetcher<T> {
 		MetricGroup metricGroup,
 		KinesisDeserializationSchema<T> shardDeserializer) {
 
-		final KinesisProxyInterface kinesis = kinesisProxyFactory.create(configProps);
+		boolean useFanOut = false;
+		final RecordPublisher recordPublisher;
 
-		final RecordPublisher recordPublisher = new PollingRecordPublisherFactory()
-			.create(configProps, metricGroup, subscribedShard, kinesis);
+		if (useFanOut) {
+			final KinesisProxyV2Interface kinesis = new KinesisProxyV2();
+			recordPublisher = new FanOutRecordPublisherFactory()
+				.create(configProps, metricGroup, subscribedShard, kinesis);
+		} else {
+			final KinesisProxyInterface kinesis = kinesisProxyFactory.create(configProps);
+			 recordPublisher = new PollingRecordPublisherFactory()
+				.create(configProps, metricGroup, subscribedShard, kinesis);
+		}
 
 		return new ShardConsumer<>(
 			this,
